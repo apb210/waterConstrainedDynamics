@@ -1,0 +1,322 @@
+
+close all;
+clear all;
+% Whatever parameters you want...
+nsteps = 10000;           % Number of timesteps
+dt = 0.001;              % Timestep		
+T_set=3.62;                 %Specify Temperature
+plotrefreshrate = 2;  % How often to refresh plots
+density = 0.01;         % The density of the system
+sys_size = 4;           % Number of particles per direction in the
+                        % cubic case
+ang=104.5;
+B=(180-ang)/2;
+OHbl=.96;              %H-O bondlength
+HHbl=2*OHbl*cosd(B);  
+massOinv=62.5;             %inverse of mass O
+massHinv=100;             %inverse of mass H
+
+Vol=(sys_size)^3/density;
+
+% End of parameters
+
+    
+    s = sys_size;
+    X1 = zeros(s,s,s);
+    Y1 = X1;
+    Z1 = X1;
+    X2 = X1;
+    Y2 = X1;
+    Z2 = X1;
+    X3 = X1;
+    Y3 = X1;
+    Z3 = X1;
+    boxl = s/(density^(1/3)); %8.4...
+    
+    
+    for i=1:s
+      X1(i,:,:) = (i-0.5)/(density^(1/3));
+      Y1(:,i,:) = (i-0.5)/(density^(1/3));
+      Z1(:,:,i) = (i-0.5)/(density^(1/3));
+      
+      X2(i,:,:) = X1(i,:,:)+OHbl*cosd(B);
+      Y2(:,i,:) = Y1(:,i,:)+OHbl*sind(B);
+      Z2(:,:,i) = Z1(:,:,i);
+      
+      X3(i,:,:) = X1(i,:,:)+HHbl;
+      Y3(:,i,:) = Y1(:,i,:);
+      Z3(:,:,i) = Z1(:,:,i);
+      
+    end
+  mol=8;  
+  randoffset=2*(rand(length(X1(:)),3)-1)*0.1;
+  randoffset=[randoffset;randoffset;randoffset];
+  xx = [X1(:) Y1(:) Z1(:);X2(:) Y2(:) Z2(:);X3(:) Y3(:) Z3(:) ];
+     %plot3(xx(:,1),xx(:,2),xx(:,3),'o');
+     
+ 
+  
+  %xx = [X2(:) Y2(:) Z2(:);X1(:) Y1(:) Z1(:);X3(:) Y3(:) Z3(:) ]+randoffset;
+  clear X1 Y1 Z1 X2 Y2 Z2 X3 Y3 Z3 randoffset;
+  
+  %xx0 = zeros(size(xx));
+  np = size(xx,1); %number of particles
+  
+  vv = 2*randn(np/3,3);
+  vv = [vv;vv;vv];% Normally distributed velocities
+  vv = vv - ones(np,1)*mean(vv);  % Set momentum to zero
+  
+  T=T_set;
+  ke = 1/2 * sum(vv(:).^2);
+  vv = vv * sqrt(3/2*np*T / ke);
+ 
+      
+[ff,u,config] = fcalc_2(xx,boxl,np); 
+  
+s=size(xx,1);
+mol=s/3;  
+
+for istep=1:nsteps
+  
+  if(istep<500)  
+  if(mod(istep,50)==0)
+      ke = 1/2 * sum(vv(:).^2);
+      vv = vv * sqrt(3/2*np*T / ke);
+  end
+  end
+        
+  xx_new(1:mol,:) = xx(1:mol,:) + vv(1:mol,:)*dt+ (massHinv)*0.5*ff(1:mol,:)*dt*dt;
+  xx_new(mol+1:2*mol,:) = xx(mol+1:2*mol,:) + vv(mol+1:2*mol,:)*dt+ (massOinv)*0.5*ff(mol+1:2*mol,:)*dt*dt;
+  xx_new(2*mol+1:3*mol,:) = xx(2*mol+1:3*mol,:) + vv(2*mol+1:3*mol,:)*dt+ (massHinv)*0.5*ff(2*mol+1:3*mol,:)*dt*dt;
+  
+  
+  
+  R12=xx(1:mol,:)-xx(mol+1:2*mol,:);
+  R12=R12-boxl*round(R12/boxl);
+  R23=xx(mol+1:2*mol,:)-xx(2*mol+1:3*mol,:);
+  R23=R23-boxl*round(R23/boxl);
+  R31=xx(2*mol+1:3*mol,:)-xx(1:mol,:);
+  R31=R31-boxl*round(R31/boxl);
+  
+  
+  P12=xx_new(1:mol,:)-xx_new(mol+1:2*mol,:);
+  P12=P12-boxl*round(P12/boxl);
+  P23=xx_new(mol+1:2*mol,:)-xx_new(2*mol+1:3*mol,:);
+  P23=P23-boxl*round(P23/boxl);
+  P31=xx_new(2*mol+1:3*mol,:)-xx_new(1:mol,:);
+  P31=P31-boxl*round(P31/boxl);
+  
+  for i=1:mol
+   
+  A1=P12(i,:);
+  B1=(massHinv+massOinv)*dt*dt*R12(i,:);
+  C1=(massOinv)*dt*dt*R23(i,:);
+  D1=(massHinv)*dt*dt*R31(i,:);
+  
+  A2=P23(i,:);
+  B2=(massOinv)*dt*dt*R12(i,:);
+  C2=(massHinv+massOinv)*dt*dt*R23(i,:);
+  D2=(massHinv)*dt*dt*R31(i,:);
+  
+  A3=P31(i,:);
+  B3=(massHinv)*dt*dt*R12(i,:);
+  C3=(massHinv)*dt*dt*R23(i,:);
+  D3=(massHinv+massOinv)*dt*dt*R31(i,:);
+  
+  A1SQ=dot(A1',A1');
+  B1SQ=dot(B1',B1');
+  C1SQ=dot(C1',C1');
+  D1SQ=dot(D1',D1');
+  
+  
+  A2SQ=dot(A2',A2');
+  B2SQ=dot(B2',B2');
+  C2SQ=dot(C2',C2');
+  D2SQ=dot(D2',D2');
+  
+  
+  A3SQ=dot(A3',A3');
+  B3SQ=dot(B3',B3');
+  C3SQ=dot(C3',C3');
+  D3SQ=dot(D3',D3');
+ 
+  r=ones(3,1);
+  iter=0;
+  L=zeros(3,1);
+ while (abs(all(r>0)))
+    
+  
+  
+  %checked
+  F1=A1SQ+B1SQ*L(1)^2+C1SQ*L(2)^2+D1SQ*L(3)^2+2*dot(A1',B1')*L(1)...
+      -2*dot(A1',C1')*L(2)-2*dot(A1',D1')*L(3)+2*dot(C1',D1')*L(2)*L(3)...
+      -2*dot(B1',C1')*L(1)*L(2)-2*dot(B1',D1')*L(1)*L(3)-(OHbl)^2;
+  
+  
+  F2=A2SQ+B2SQ*L(1)^2+C2SQ*L(2)^2+D2SQ*L(3)^2-2*dot(A2',B2')*L(1)...
+      +2*dot(A2',C2')*L(2)-2*dot(A2',D2')*L(3)-2*dot(C2',D2')*L(2)*L(3)...
+      -2*dot(B2',C2')*L(1)*L(2)+2*dot(B2',D2')*L(1)*L(3)-(OHbl)^2;
+  
+  
+  F3=A3SQ+B3SQ*L(1)^2+C3SQ*L(2)^2+D3SQ*L(3)^2-2*dot(A3',B3')*L(1)...
+      -2*dot(A3',C3')*L(2)+2*dot(A3',D3')*L(3)-2*dot(C3',D3')*L(2)*L(3)...
+      +2*dot(B3',C3')*L(1)*L(2)-2*dot(B3',D3')*L(1)*L(3)-(HHbl)^2;
+  
+  
+  %checked ok
+  J11=+2*dot(A1',B1')+2*B1SQ*L(1)-2*dot(B1',C1')*L(2)-2*dot(B1',D1')*L(3);
+  J12=-2*dot(A1',C1')+2*C1SQ*L(2)+2*dot(C1',D1')*L(3)-2*dot(B1',C1')*L(1);
+  J13=-2*dot(A1',D1')+2*D1SQ*L(3)+2*dot(C1',D1')*L(2)-2*dot(B1',D1')*L(1);
+   
+  %checked ok 
+  J21=-2*dot(A2',B2')+2*B2SQ*L(1)-2*dot(B2',C2')*L(2)+2*dot(B2',D2')*L(3);
+  J22=+2*dot(A2',C2')+2*C2SQ*L(2)-2*dot(C3',D3')*L(3)+2*dot(B3',C3')*L(1);
+  J23=-2*dot(A2',D2')+2*D2SQ*L(3)-2*dot(C2',D2')*L(2)+2*dot(B2',D2')*L(1);
+  
+  J31=-2*dot(A3',B3')+2*B3SQ*L(1)+2*dot(B3',C3')*L(2)-2*dot(B3',D3')*L(3);
+  J32=-2*dot(A3',C3')+2*C3SQ*L(2)-2*dot(C3',D3')*L(3)+2*dot(B3',C3')*L(1);
+  J33=+2*dot(A3',D3')+2*D3SQ*L(3)-2*dot(C3',D3')*L(2)-2*dot(B3',D3')*L(1);
+  
+      
+  J=[J11 J12 J13;J21 J22 J23; J31 J32 J33];
+  
+  F=[F1;F2;F3];
+  
+  
+  h=(J)\F;
+  L=L-h;
+  
+  G1=A1SQ+B1SQ*L(1)^2+C1SQ*L(2)^2+D1SQ*L(3)^2+2*dot(A1',B1')*L(1)...
+      -2*dot(A1',C1')*L(2)-2*dot(A1',D1')*L(3)+2*dot(C1',D1')*L(2)*L(3)...
+      -2*dot(B1',C1')*L(1)*L(2)-2*dot(B1',D1')*L(1)*L(3)-(OHbl)^2;
+  
+  G2=A2SQ+B2SQ*L(1)^2+C2SQ*L(2)^2+D2SQ*L(3)^2-2*dot(A2',B2')*L(1)...
+      +2*dot(A2',C2')*L(2)-2*dot(A2',D2')*L(3)-2*dot(C2',D2')*L(2)*L(3)...
+      -2*dot(B2',C2')*L(1)*L(2)+2*dot(B2',D2')*L(1)*L(3)-(OHbl)^2;
+  
+  G3=A3SQ+B3SQ*L(1)^2+C3SQ*L(2)^2+D3SQ*L(3)^2-2*dot(A3',B3')*L(1)...
+      -2*dot(A3',C3')*L(2)+2*dot(A3',D3')*L(3)-2*dot(C3',D3')*L(2)*L(3)...
+      +2*dot(B3',C3')*L(1)*L(2)-2*dot(B3',D3')*L(1)*L(3)-(HHbl)^2;
+  
+  G=[G1;G2;G3];
+    r=G;
+ if(all(r<0.00001))
+     r=0;
+ end
+      
+  
+  iter=iter+1;
+  
+ end
+ 
+
+ 
+    clear F;
+    clear J;
+    
+    L12=L(1);
+    L23=L(2);
+    L31=L(3);
+   
+    %xx_new=watch_box(xx_new,boxl);
+    
+    %xx_new = xx_new-boxl*round(xx_new/boxl); 
+    xx_new(i,:)=xx_new(i,:) + massHinv*(L12*R12(i,:)-L31*R31(i,:))*dt*dt;
+    xx_new(i,:)=xx_new(i,:)-boxl*round(xx_new(i,:)/boxl); 
+    xx_new(i+mol,:)=xx_new(i+mol,:) + massOinv*(L23*R23(i,:)-L12*R12(i,:))*dt*dt;
+    xx_new(i+mol,:)=xx_new(i+mol,:)-boxl*round(xx_new(i+mol,:)/boxl);
+    xx_new(i+2*mol,:)=xx_new(i+2*mol,:) + massHinv*(L31*R31(i,:)-L23*R23(i,:))*dt*dt;
+    xx_new(i+2*mol,:)=xx_new(i+2*mol,:)-boxl*round(xx_new(i+2*mol,:)/boxl); 
+    
+  
+    
+  end
+  
+  %Force Step
+  [ff_new,u,config] = fcalc_2(xx_new,boxl,np); 
+  
+  
+  %Velocity Step
+  vv_new(1:mol,:) = vv(1:mol,:) + (massHinv)*0.5*(ff(1:mol,:)+ff_new(1:mol,:))*dt*dt;
+  vv_new(mol+1:2*mol,:) = vv(mol+1:2*mol,:) + (massOinv)*0.5*(ff(mol+1:2*mol,:)+ff_new(mol+1:2*mol,:))*dt*dt;
+  vv_new(2*mol+1:3*mol,:) = vv(2*mol+1:3*mol,:) + (massHinv)*0.5*(ff(2*mol+1:3*mol,:)+ff_new(2*mol+1:3*mol,:))*dt*dt;
+  
+  config2=confisum(L,OHbl,HHbl,mol);
+  
+  P(istep)=density*T+(1/3)*(config+config2)/Vol;
+  
+  
+  
+  
+  
+      
+       %plot3(xx(:,1),xx(:,2),xx(:,3),'o');
+      
+       %pause(0.00005);
+       
+ 
+  xx=xx_new;
+  ff=ff_new;
+  vv=vv_new;
+  
+  
+  
+  
+  v=sum(vv(:).^2);
+  k = 1/2 * v;
+  U=u;
+  K_i(istep)=k;
+  U_i(istep)=U;
+  E_t(istep)=k+U;
+  E(istep,1)=k;
+  E(istep,2)=U;
+  E(istep,3)=k+U;
+  
+  
+ 
+  
+  %plot(istep,E(istep,3));
+  %pause;
+  %hold on;
+  
+  
+  distOH1 = sqrt(sum((xx(1,:)-xx(1+mol,:)).^2));
+  distOH2 = sqrt(sum((xx(1+mol,:)-xx(1+2*mol,:)).^2));
+  distHH1 = sqrt(sum((xx(1,:)-xx(1+2*mol,:)).^2));
+  a(1,:)=[distOH1 distOH1 distHH1]
+  %pause(0.05);
+  
+ %if(mod(istep,plotrefreshrate)==0)
+ %     apratim = strcat(num2str(istep),'.gro');
+ %     fid(istep) = fopen(apratim,'W');
+ % fprintf(fid(istep),'%s%d\n', 'MD of water in a box using LJ, step',istep);
+ % fprintf(fid(istep),'%d\n',np);
+ % it=1;
+ % for ap=1:(sys_size^3)
+ %   
+ %   fprintf(fid(istep),'%5d%5s%5s%5d%8.3f%8.3f%8.3f\n',ap...
+ %     ,'WATER','HW1',it,xx(ap,1),xx(ap,2),xx(ap,3));
+ %   
+ %   fprintf(fid(istep),'%5d%5s%5s%5d%8.3f%8.3f%8.3f\n',ap...
+ %     ,'WATER','OW1',it+1,xx(ap+mol,1),xx(ap+mol,2),xx(ap+mol,3));
+ %   
+ %   fprintf(fid(istep),'%5d%5s%5s%5d%8.3f%8.3f%8.3f\n',ap...
+ %     ,'WATER','HW2',it+2,xx(ap+2*mol,1),xx(ap+2*mol,2),xx(ap+2*mol,3));
+ %   it=it+3;
+ % end
+  
+ % fprintf(fid(istep),'%7.5f %7.5f %7.5f',boxl,boxl,boxl);
+ % fclose(fid(istep));
+ % end
+  
+ [rr,g] = gr1(xx,25,12,boxl);
+  plot(rr,g,'-');
+  xlabel('r');
+  title('distribution function');
+  legend('g(r)')
+
+  pause(0.0005);
+ 
+ %L=0;
+ istep
+end
